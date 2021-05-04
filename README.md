@@ -133,7 +133,7 @@ Linear classification results on CSCI-GA.2572 dataset using this repo with 2 GPU
 <tr><td align="left">ResNet-50</td>
 <td align="center">200</td>
 <td align="center">44 hours</td>
-<td align="center">33&plusmn;0.1</td>
+<td align="center">35&plusmn;0.1</td>
 </tr>
 </tbody></table>
 
