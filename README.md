@@ -20,9 +20,9 @@ This team composed of **Robert Melikyan, Jash Tejaskumar Doshi, and Omkar Ajit D
 
 ### Preparation
 
-Ensure PyTorch is installed along with 96x96 dataset of RGB images. Although given an original dataset of both labelled and unlabelled images, 12800 images were labelled during the process. Their respective identification filenames and labels can be found [here](https://arxiv.org/abs/1706.02677) and [here](https://arxiv.org/abs/1706.02677).
+Ensure PyTorch is installed along with 96x96 dataset of RGB images. Although given an original dataset of both labelled and unlabelled images, 12800 images were labelled during the process. Their respective identification filenames and labels can be found [here](https://drive.google.com/drive/folders/1SxcXDGZpbkNeIScJA3dFK1aMcimK8XxF?usp=sharing).
 
-The two primary files for this task can be found below: #HERE#
+The two primary files for this task can be found below, in all the code samples below, the files are maintained and executed in the same directory:
 ```
 diff main_moco.py <(curl https://raw.githubusercontent.com/pytorch/examples/master/imagenet/main.py)
 diff main_lincls.py <(curl https://raw.githubusercontent.com/pytorch/examples/master/imagenet/main.py)
@@ -32,33 +32,62 @@ diff main_lincls.py <(curl https://raw.githubusercontent.com/pytorch/examples/ma
 
 This implementation only supports **multi-gpu**, **DistributedDataParallel** training, which is faster and simpler; single-gpu or DataParallel training is not supported.
 
-To do unsupervised pre-training of a ResNet-50 model on the dataset in an 2-gpu machine, run a sbatch file as specified below: # HERE#
+To do unsupervised pre-training of a ResNet-50 model on the dataset in an 2-gpu machine, run a sbatch file as specified below:
 ```
-python main_moco.py \
-  -a resnet50 \
-  --lr 0.03 \
-  --batch-size 256 \
-  --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size 1 --rank 0 \
-  [your imagenet-folder with train and val folders]
+
 ```
 
 ### HyperParemeters
 
-Initially, this script uses all the default hyper-parameters as described in the MoCo v2 paper. Since then, hyperparameters have been adjusted to: # HERE #
+Initially, this script uses all the default hyper-parameters as described in the MoCo v2 paper.
 
 
 ### Linear Classification
 
-With a pre-trained model, to train a supervised linear classifier on frozen features/weights in an 2-gpu machine, run the following sbatch request: #HERE#
+With a pre-trained model, to train a supervised linear classifier on frozen features/weights in an 2-gpu machine, run the following sbatch request:
 ```
-python main_lincls.py \
-  -a resnet50 \
-  --lr 30.0 \
-  --batch-size 256 \
-  --pretrained [your checkpoint path]/checkpoint_0199.pth.tar \
-  --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size 1 --rank 0 \
-  [your imagenet-folder with train and val folders]
+#!/bin/bash                                                                     
+
+#SBATCH --gres=gpu:2                                                            
+#SBATCH --partition=n1s16-t4-2                                                  
+#SBATCH --account=dl17                                                          
+#SBATCH --time=20:00:00                                                         
+#SBATCH --output=moco%j.out                                                     
+#SBATCH --error=moco%j.err                                                      
+#SBATCH --exclusive                                                             
+#SBATCH --requeue                                                               
+
+/share/apps/local/bin/p2pBandwidthLatencyTest > /dev/null 2>&1
+
+set -x
+
+mkdir /tmp/$USER
+export SINGULARITY_CACHEDIR=/tmp/$USER
+
+cp -rp /scratch/DL21SP/student_dataset.sqsh /tmp
+echo "Dataset is copied to /tmp"
+
+cd $HOME/test/repo/NYU_DL_comp/moco/
+
+singularity exec --nv \
+--bind /scratch \
+--overlay /scratch/DL21SP/conda.sqsh:ro \
+--overlay /tmp/student_dataset.sqsh:ro \
+/share/apps/images/cuda11.1-cudnn8-devel-ubuntu18.04.sif \
+/bin/bash -c "                
+source /ext3/env.sh                                                             
+conda activate dev                                                              
+CUDA_VISIBLE_DEVICES=0,1                                                        
+python3 main_linclssupervised.py \                                              
+  -a resnet50 \                                                                 
+ -data /dataset \                                                               
+  --lr 30.0 \                                                                   
+  --batch-size 256 \                                                            
+  --pretrained $SCRATCH/checkpoints/demo/moco_unsupervised_0065.pth.tar \       
+  --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size\
+ 1 --rank 0"
 ```
+# 100 epochs
 
 Linear classification results on CSCI-GA.2572 dataset using this repo with 2 GPUs :
 <table><tbody>
