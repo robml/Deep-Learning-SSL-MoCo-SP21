@@ -20,13 +20,9 @@ This team composed of **Robert Melikyan, Jash Tejaskumar Doshi, and Omkar Ajit D
 
 ### Preparation
 
-Ensure PyTorch is installed along with 96x96 dataset of RGB images. Although given an original dataset of both labelled and unlabelled images, 12800 images were labelled during the process. Their respective identification filenames and labels can be found [here](https://drive.google.com/drive/folders/1SxcXDGZpbkNeIScJA3dFK1aMcimK8XxF?usp=sharing).
+Ensure PyTorch is installed along with 96x96 dataset of RGB images. Although given an original dataset of both labelled and unlabelled images, 12800 images were labelled during the process. Their respective identification filenames and labels can be found [here](https://drive.google.com/drive/folders/1SxcXDGZpbkNeIScJA3dFK1aMcimK8XxF?usp=sharing). The methodology of how the 12800 images were chosen was after running the unsupervised model initially, and deciding to randomly sample images afterwards to get a representative balance over high and low energy images that were either in cluster centers or edges.
 
-The two primary files for this task can be found below, in all the code samples below, the files are maintained and executed in the same directory:
-```
-diff main_moco.py <(curl https://raw.githubusercontent.com/pytorch/examples/master/imagenet/main.py)
-diff main_lincls.py <(curl https://raw.githubusercontent.com/pytorch/examples/master/imagenet/main.py)
-```
+The files for this project should be maintained and executed in the same directory, the main files including [main_moco.py](https://github.com/robml/Deep-Learning-SSL-MoCo-SP21/blob/main/main_moco.py) for unsupervised learning and [main_linclssupervised.py](https://github.com/robml/Deep-Learning-SSL-MoCo-SP21/blob/main/main_linclssupervised.py) for the linear classifier. Additionally there is [main_linclsnewlabel.py](https://github.com/robml/Deep-Learning-SSL-MoCo-SP21/blob/main/main_linclsnewlabel.py) which takes into account the newly labelled data linked above, however since then this code has been deprecated in favor of the former, by simply replacing the directory name with the folder containing the new labelled data linked above.
 
 ### Unsupervised Training
 
@@ -34,12 +30,48 @@ This implementation only supports **multi-gpu**, **DistributedDataParallel** tra
 
 To do unsupervised pre-training of a ResNet-50 model on the dataset in an 2-gpu machine, run a sbatch file as specified below:
 ```
+#!/bin/bash                                                                     
 
+#SBATCH --gres=gpu:2                                                            
+#SBATCH --partition=n1s16-t4-2                                                  
+#SBATCH --account=dl17                                                          
+#SBATCH --time=20:00:00                                                         
+#SBATCH --output=final%j.out                                                    
+#SBATCH --error=final%j.err                                                     
+#SBATCH --exclusive                                                             
+#SBATCH --requeue                                                               
+
+/share/apps/local/bin/p2pBandwidthLatencyTest > /dev/null 2>&1
+
+set -x
+
+mkdir /tmp/$USER
+export SINGULARITY_CACHEDIR=/tmp/$USER
+
+cp -rp /scratch/DL21SP/student_dataset.sqsh /tmp
+echo "Dataset is copied to /tmp"
+
+
+cd $HOME/test/repo/NYU_DL_comp/moco/
+
+singularity exec --nv \
+--bind /scratch \
+--overlay /scratch/DL21SP/conda.sqsh:ro \
+--overlay /tmp/student_dataset.sqsh:ro \
+/share/apps/images/cuda11.1-cudnn8-devel-ubuntu18.04.sif \
+/bin/bash -c " 
+source /ext3/env.sh                                                             
+conda activate dev                                                              
+CUDA_VISIBLE_DEVICES=0,1 python3 main_moco.py   -a resnet50   --lr 0.06 --batch\
+-size 512 --epochs 200  --dist-url 'tcp://localhost:10004' --resume $SCRATCH/ch\
+eckpoints/demo/moco_unsupervised_0065.pth.tar  --multiprocessing-distributed --\
+world-size 1 --rank 0 -data /dataset --mlp --moco-t 0.2 --aug-plus --cos  --wor\
+kers 4 --checkpoint_dir $SCRATCH/checkpoints/moco"
 ```
 
 ### HyperParemeters
 
-Initially, this script uses all the default hyper-parameters as described in the MoCo v2 paper.
+Initially, this script uses all the default hyper-parameters as described in the MoCo v2 paper. Note both 150 and 200 epochs were run. For Linear Classification 100 epochs were used.
 
 
 ### Linear Classification
@@ -87,8 +119,8 @@ python3 main_linclssupervised.py \
   --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size\
  1 --rank 0"
 ```
-# 100 epochs
 
+### Models
 Linear classification results on CSCI-GA.2572 dataset using this repo with 2 GPUs :
 <table><tbody>
 <!-- START TABLE -->
@@ -105,52 +137,7 @@ Linear classification results on CSCI-GA.2572 dataset using this repo with 2 GPU
 </tr>
 </tbody></table>
 
-Here we run 5 trials (of pre-training and linear classification) and report mean&plusmn;std: the 5 results of MoCo v2 are {67.7, 67.6, 67.4, 67.6, 67.3}.
-
-
-### Models
-
-Our pre-trained ResNet-50 models can be downloaded as following:
-<table><tbody>
-<!-- START TABLE -->
-<!-- TABLE HEADER -->
-<th valign="bottom"></th>
-<th valign="bottom">epochs</th>
-<th valign="bottom">mlp</th>
-<th valign="bottom">aug+</th>
-<th valign="bottom">cos</th>
-<th valign="bottom">top-1 acc.</th>
-<th valign="bottom">model</th>
-<th valign="bottom">md5</th>
-<!-- TABLE BODY -->
-<tr><td align="left"><a href="https://arxiv.org/abs/1911.05722">MoCo v1</a></td>
-<td align="center">200</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">60.6</td>
-<td align="center"><a href="https://dl.fbaipublicfiles.com/moco/moco_checkpoints/moco_v1_200ep/moco_v1_200ep_pretrain.pth.tar">download</a></td>
-<td align="center"><tt>b251726a</tt></td>
-</tr>
-<tr><td align="left"><a href="https://arxiv.org/abs/2003.04297">MoCo v2</a></td>
-<td align="center">200</td>
-<td align="center">&#x2713</td>
-<td align="center">&#x2713</td>
-<td align="center">&#x2713</td>
-<td align="center">67.7</td>
-<td align="center"><a href="https://dl.fbaipublicfiles.com/moco/moco_checkpoints/moco_v2_200ep/moco_v2_200ep_pretrain.pth.tar">download</a></td>
-<td align="center"><tt>59fd9945</tt></td>
-</tr>
-<tr><td align="left"><a href="https://arxiv.org/abs/2003.04297">MoCo v2</a></td>
-<td align="center">800</td>
-<td align="center">&#x2713</td>
-<td align="center">&#x2713</td>
-<td align="center">&#x2713</td>
-<td align="center">71.1</td>
-<td align="center"><a href="https://dl.fbaipublicfiles.com/moco/moco_checkpoints/moco_v2_800ep/moco_v2_800ep_pretrain.pth.tar">download</a></td>
-<td align="center"><tt>a04e12f8</tt></td>
-</tr>
-</tbody></table>
+Our pre-trained ResNet-50 models along with supplementary code can be found [here](https://drive.google.com/drive/folders/1JhFI2a_fiUphjgzQHiwKFSTWdy_Kn8a5?usp=sharing)
 
 REQUIRED PACKAGES
 -------------------
