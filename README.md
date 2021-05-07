@@ -71,7 +71,7 @@ kers 4 --checkpoint_dir $SCRATCH/checkpoints/moco"
 
 ### HyperParemeters
 
-Initially, this script uses all the default hyper-parameters as described in the MoCo v2 paper. Note both 150 and 200 epochs were run. For Linear Classification 100 epochs were used.
+Initially, this script uses all the default hyper-parameters as described in the MoCo v2 paper. Note both 200, 250 and 300 epochs were run. For Linear Classification 100 epochs were used.
 
 
 ### Linear Classification
